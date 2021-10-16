@@ -1,10 +1,10 @@
-package com.maciej.wojtaczka.postboard;
+package com.maciej.wojtaczka.announcementboard;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class PostBoardApplicationTests {
+class AnnouncementBoardApplicationTests {
 
     @Test
     void contextLoads() {
