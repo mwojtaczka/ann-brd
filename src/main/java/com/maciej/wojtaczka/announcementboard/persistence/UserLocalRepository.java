@@ -18,6 +18,17 @@ public class UserLocalRepository implements UserService {
 		this.cassandraOperations = cassandraOperations;
 	}
 
+	public void saveUser(User user) {
+		UserDbEntity entity = UserDbEntity.builder()
+										  .id(user.getId())
+										  .nickname(user.getNickname())
+										  .name(user.getName())
+										  .surname(user.getSurname())
+										  .build();
+
+		cassandraOperations.insert(entity);
+	}
+
 	@Override
 	public Optional<User> fetchUser(UUID userId) {
 
@@ -28,11 +39,11 @@ public class UserLocalRepository implements UserService {
 		}
 
 		User user = User.builder()
-						 .id(userDbEntity.getId())
-						 .name(userDbEntity.getName())
-						 .surname(userDbEntity.getSurname())
-						 .nickname(userDbEntity.getNickname())
-						 .build();
+						.id(userDbEntity.getId())
+						.name(userDbEntity.getName())
+						.surname(userDbEntity.getSurname())
+						.nickname(userDbEntity.getNickname())
+						.build();
 
 		return Optional.of(user);
 	}
