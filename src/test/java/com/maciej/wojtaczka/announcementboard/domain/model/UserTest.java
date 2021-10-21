@@ -24,7 +24,7 @@ class UserTest {
 
 		//then
 		assertAll(
-				() -> assertThat(announcement.getAnnouncerId()).isEqualTo(announcerId),
+				() -> assertThat(announcement.getAuthorId()).isEqualTo(announcerId),
 				() -> assertThat(announcement.getCreationTime()).isNotNull()
 		);
 	}

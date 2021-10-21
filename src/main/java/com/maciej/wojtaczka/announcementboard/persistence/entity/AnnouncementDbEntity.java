@@ -17,8 +17,8 @@ import java.util.UUID;
 @Value
 public class AnnouncementDbEntity {
 
-	@PrimaryKeyColumn(type = PrimaryKeyType.PARTITIONED, name = "announcer_id")
-	UUID announcerId;
+	@PrimaryKeyColumn(type = PrimaryKeyType.PARTITIONED, name = "author_id")
+	UUID authorId;
 	@PrimaryKeyColumn(type = PrimaryKeyType.CLUSTERED, ordering = Ordering.DESCENDING, name = "creation_time")
 	Instant creationTime;
 	String content;

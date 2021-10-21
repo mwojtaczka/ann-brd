@@ -9,11 +9,11 @@ CREATE TYPE announcement_board.comment
 
 CREATE TABLE announcement_board.announcement
 (
-    announcer_id  uuid,
+    author_id  uuid,
     creation_time timestamp,
     content text,
     comments list<FROZEN <comment>>,
-    PRIMARY KEY ((announcer_id), creation_time)
+    PRIMARY KEY ((author_id), creation_time)
 );
 
 CREATE TABLE announcement_board.user

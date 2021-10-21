@@ -22,7 +22,7 @@ public class User extends DomainModel {
 	public Announcement publishAnnouncement(String content) {
 
 		Announcement announcement = Announcement.builder()
-												.announcerId(id)
+												.authorId(id)
 												.content(content)
 												.creationTime(Instant.now())
 												.build();

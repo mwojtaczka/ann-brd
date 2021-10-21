@@ -13,7 +13,7 @@ import java.util.UUID;
 @EqualsAndHashCode
 public class Announcement {
 
-    private final UUID announcerId;
+    private final UUID authorId;
     private final String content;
     private final Instant creationTime;
     private List<Comment> comments;

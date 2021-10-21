@@ -83,7 +83,7 @@ class AnnouncementBoardControllerTest {
 		//then
 		//verify response
 		String jsonAnnouncement = result.andExpect(status().isCreated())
-										.andExpect(jsonPath("$.announcerId", equalTo(announcerId.toString())))
+										.andExpect(jsonPath("$.authorId", equalTo(announcerId.toString())))
 										.andExpect(jsonPath("$.content", equalTo(announcementContent)))
 										.andExpect(jsonPath("$.creationTime", notNullValue()))
 										.andReturn().getResponse().getContentAsString();
@@ -92,7 +92,7 @@ class AnnouncementBoardControllerTest {
 		Announcement announcement = objectMapper.readValue(jsonAnnouncement, Announcement.class);
 
 		AnnouncementDbEntity announcementDbEntity = cassandraOperations.selectOne(
-				String.format("select * from announcement_board.announcement where announcer_id = %s and creation_time = %s",
+				String.format("select * from announcement_board.announcement where author_id = %s and creation_time = %s",
 							  announcerId,
 							  announcement.getCreationTime().toEpochMilli()),
 				AnnouncementDbEntity.class
@@ -100,7 +100,7 @@ class AnnouncementBoardControllerTest {
 
 		assertThat(announcementDbEntity).isNotNull();
 		assertAll(
-				() -> assertThat(announcementDbEntity.getAnnouncerId()).isEqualTo(announcerId),
+				() -> assertThat(announcementDbEntity.getAuthorId()).isEqualTo(announcerId),
 				() -> assertThat(announcementDbEntity.getCreationTime()).isEqualTo(announcement.getCreationTime().truncatedTo(MILLIS)),
 				() -> assertThat(announcementDbEntity.getContent()).isEqualTo(announcementContent)
 		);
