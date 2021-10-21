@@ -3,24 +3,41 @@ package com.maciej.wojtaczka.announcementboard.util;
 import com.maciej.wojtaczka.announcementboard.domain.model.User;
 import lombok.SneakyThrows;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.beans.factory.DisposableBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.listener.ContainerProperties;
+import org.springframework.kafka.listener.KafkaMessageListenerContainer;
+import org.springframework.kafka.listener.MessageListener;
+import org.springframework.kafka.test.EmbeddedKafkaBroker;
+import org.springframework.kafka.test.utils.ContainerTestUtils;
+import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Component
-public class KafkaTestListener {
+@ConditionalOnBean(EmbeddedKafkaBroker.class)
+public class KafkaTestListener implements DisposableBean {
 
-	private Map<String, ConcurrentLinkedQueue<ConsumerRecord<String, String>>> recordsPerTopic;
+	private final EmbeddedKafkaBroker broker;
+
+	private final Map<String, ConcurrentLinkedQueue<ConsumerRecord<String, String>>> recordsPerTopic;
 	private Map<String, CountDownLatch> latchPerTopic;
+	private final Set<KafkaMessageListenerContainer<String, String>> containers = new HashSet<>();
 
-	public KafkaTestListener() {
+
+	public KafkaTestListener(EmbeddedKafkaBroker broker) {
+		this.broker = broker;
 		recordsPerTopic = new HashMap<>();
 		latchPerTopic = new HashMap<>();
 		prepareForTopics(User.DomainEvents.ANNOUNCEMENT_PUBLISHED);
@@ -30,7 +47,19 @@ public class KafkaTestListener {
 		for (String topic : topics) {
 			recordsPerTopic.put(topic, new ConcurrentLinkedQueue<>());
 			latchPerTopic.put(topic, new CountDownLatch(1));
+			setupContainer(topic);
 		}
+	}
+
+	private void setupContainer(String topic) {
+		ContainerProperties containerProperties = new ContainerProperties(topic);
+		Map<String, Object> consumerProperties = KafkaTestUtils.consumerProps(UUID.randomUUID().toString(), "false", broker);
+		DefaultKafkaConsumerFactory<String, String> consumer = new DefaultKafkaConsumerFactory<>(consumerProperties);
+		var container = new KafkaMessageListenerContainer<>(consumer, containerProperties);
+		container.setupMessageListener((MessageListener<String, String>) record -> consume(record, topic));
+		container.start();
+		containers.add(container);
+		ContainerTestUtils.waitForAssignment(container, broker.getPartitionsPerTopic());
 	}
 
 	public void reset() {
@@ -39,20 +68,15 @@ public class KafkaTestListener {
 									 .collect(Collectors.toMap(Map.Entry::getKey, entry -> new CountDownLatch(1)));
 	}
 
-	@KafkaListener(topics = User.DomainEvents.ANNOUNCEMENT_PUBLISHED, groupId = "test")
-	void receiveAnnouncementPublished(ConsumerRecord<String, String> consumerRecord) {
-
-		ConcurrentLinkedQueue<ConsumerRecord<String, String>> announcementPublishedRecords =
-				recordsPerTopic.get(User.DomainEvents.ANNOUNCEMENT_PUBLISHED);
-
-		announcementPublishedRecords.add(consumerRecord);
-
-		latchPerTopic.get(User.DomainEvents.ANNOUNCEMENT_PUBLISHED).countDown();
+	void consume(ConsumerRecord<String, String> consumerRecord, String topic) {
+		ConcurrentLinkedQueue<ConsumerRecord<String, String>> records = recordsPerTopic.get(topic);
+		records.add(consumerRecord);
+		latchPerTopic.get(topic).countDown();
 	}
 
 	@SneakyThrows
 	public Optional<String> receiveFirstContentFromTopic(String topic) {
-		latchPerTopic.get(topic).await(200, TimeUnit.MILLISECONDS);
+		latchPerTopic.get(topic).await(2000, TimeUnit.MILLISECONDS);
 		ConsumerRecord<String, String> firstMessage = recordsPerTopic.get(topic).poll();
 		if (firstMessage == null) {
 			return Optional.empty();
@@ -64,5 +88,10 @@ public class KafkaTestListener {
 	public boolean noMoreMessagesOnTopic(String topic, long awaitTimeMillis) {
 		Thread.sleep(awaitTimeMillis);
 		return recordsPerTopic.get(topic).isEmpty();
+	}
+
+	@Override
+	public void destroy() {
+		containers.forEach(KafkaMessageListenerContainer::stop);
 	}
 }

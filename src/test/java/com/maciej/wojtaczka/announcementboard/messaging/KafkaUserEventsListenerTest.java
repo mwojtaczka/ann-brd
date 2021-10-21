@@ -13,6 +13,7 @@ import org.springframework.data.cassandra.core.CassandraOperations;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.kafka.test.context.EmbeddedKafka;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.util.concurrent.ListenableFuture;
 
@@ -24,7 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 
 @SpringBootTest
 @WebAppConfiguration
-@EmbeddedKafka(partitions = 1, brokerProperties = { "listeners=PLAINTEXT://localhost:9092", "port=9092" }, controlledShutdown = true)
+@EmbeddedKafka(partitions = 1, brokerProperties = { "listeners=PLAINTEXT://localhost:9092", "port=9092" })
+@DirtiesContext
 class KafkaUserEventsListenerTest {
 
 	@BeforeAll
