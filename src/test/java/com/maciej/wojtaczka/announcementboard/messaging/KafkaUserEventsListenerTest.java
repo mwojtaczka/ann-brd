@@ -1,11 +1,14 @@
 package com.maciej.wojtaczka.announcementboard.messaging;
 
-import com.maciej.wojtaczka.announcementboard.config.CassandraConfig;
+import com.datastax.oss.driver.api.core.CqlSession;
 import com.maciej.wojtaczka.announcementboard.persistence.entity.UserDbEntity;
+import org.cassandraunit.CQLDataLoader;
+import org.cassandraunit.dataset.cql.ClassPathCQLDataSet;
+import org.cassandraunit.utils.EmbeddedCassandraServerHelper;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.cassandra.core.CassandraOperations;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
@@ -13,6 +16,7 @@ import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.util.concurrent.ListenableFuture;
 
+import java.io.IOException;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,9 +24,15 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 
 @SpringBootTest
 @WebAppConfiguration
-@EmbeddedKafka(partitions = 1, brokerProperties = { "listeners=PLAINTEXT://localhost:9092", "port=9092" })
-@Import({ CassandraConfig.class })
+@EmbeddedKafka(partitions = 1, brokerProperties = { "listeners=PLAINTEXT://localhost:9092", "port=9092" }, controlledShutdown = true)
 class KafkaUserEventsListenerTest {
+
+	@BeforeAll
+	static void startCassandra() throws IOException, InterruptedException {
+		EmbeddedCassandraServerHelper.startEmbeddedCassandra();
+		CqlSession session = EmbeddedCassandraServerHelper.getSession();
+		new CQLDataLoader(session).load(new ClassPathCQLDataSet("schema.cql"));
+	}
 
 	@Autowired
 	private KafkaTemplate<String, String> kafkaTemplate;

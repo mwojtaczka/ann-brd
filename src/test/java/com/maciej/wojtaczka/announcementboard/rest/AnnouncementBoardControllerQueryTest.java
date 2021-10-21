@@ -1,22 +1,26 @@
 package com.maciej.wojtaczka.announcementboard.rest;
 
+import com.datastax.oss.driver.api.core.CqlSession;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.maciej.wojtaczka.announcementboard.config.CassandraConfig;
 import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
 import com.maciej.wojtaczka.announcementboard.domain.query.AnnouncementQuery;
 import com.maciej.wojtaczka.announcementboard.util.UserFixtures;
 import lombok.SneakyThrows;
+import org.cassandraunit.CQLDataLoader;
+import org.cassandraunit.dataset.cql.ClassPathCQLDataSet;
+import org.cassandraunit.utils.EmbeddedCassandraServerHelper;
 import org.hamcrest.Matchers;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -35,8 +39,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @WebAppConfiguration
 @AutoConfigureMockMvc
-@Import({ CassandraConfig.class })
 class AnnouncementBoardControllerQueryTest {
+
+	@BeforeAll
+	static void startCassandra() throws IOException, InterruptedException {
+		EmbeddedCassandraServerHelper.startEmbeddedCassandra();
+		CqlSession session = EmbeddedCassandraServerHelper.getSession();
+		new CQLDataLoader(session).load(new ClassPathCQLDataSet("schema.cql"));
+	}
 
 	@Autowired
 	private MockMvc mockMvc;

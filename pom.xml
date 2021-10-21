@@ -20,6 +20,8 @@
         <java.version>11</java.version>
 
 		<embedded-cassandra.version>4.0.8</embedded-cassandra.version>
+		<cassandra.unit.version>4.3.1.0</cassandra.unit.version>
+		<hibernate-validator.version>7.0.1.Final</hibernate-validator.version>
 	</properties>
 
     <dependencies>
@@ -56,12 +58,17 @@
 
 		<!-- CASSANDRA EMBEDDED -->
 		<dependency>
-			<groupId>com.github.nosan</groupId>
-			<artifactId>embedded-cassandra-spring-boot-starter</artifactId>
-			<version>${embedded-cassandra.version}</version>
+			<groupId>org.cassandraunit</groupId>
+			<artifactId>cassandra-unit</artifactId>
+			<version>${cassandra.unit.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.hibernate</groupId>
+			<artifactId>hibernate-validator</artifactId>
+			<version>${hibernate-validator.version}</version>
 		</dependency>
 
-    </dependencies>
+	</dependencies>
 
     <build>
         <plugins>

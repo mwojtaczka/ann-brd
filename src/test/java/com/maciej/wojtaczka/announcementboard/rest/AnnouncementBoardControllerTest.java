@@ -1,7 +1,7 @@
 package com.maciej.wojtaczka.announcementboard.rest;
 
+import com.datastax.oss.driver.api.core.CqlSession;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.maciej.wojtaczka.announcementboard.config.CassandraConfig;
 import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
 import com.maciej.wojtaczka.announcementboard.domain.model.User;
 import com.maciej.wojtaczka.announcementboard.persistence.entity.AnnouncementDbEntity;
@@ -9,19 +9,23 @@ import com.maciej.wojtaczka.announcementboard.rest.dto.AnnouncementData;
 import com.maciej.wojtaczka.announcementboard.util.KafkaTestListener;
 import com.maciej.wojtaczka.announcementboard.util.UserFixtures;
 import lombok.SneakyThrows;
+import org.cassandraunit.CQLDataLoader;
+import org.cassandraunit.dataset.cql.ClassPathCQLDataSet;
+import org.cassandraunit.utils.EmbeddedCassandraServerHelper;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.cassandra.core.CassandraOperations;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.io.IOException;
 import java.util.UUID;
 
 import static com.maciej.wojtaczka.announcementboard.rest.AnnouncementBoardController.ANNOUNCEMENTS_URL;
@@ -38,9 +42,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @WebAppConfiguration
 @AutoConfigureMockMvc
-@EmbeddedKafka(partitions = 1, brokerProperties = { "listeners=PLAINTEXT://localhost:9092", "port=9092" })
-@Import({ CassandraConfig.class })
+@EmbeddedKafka(partitions = 1, brokerProperties = { "listeners=PLAINTEXT://localhost:9092", "port=9092" }, controlledShutdown = true)
 class AnnouncementBoardControllerTest {
+
+	@BeforeAll
+	static void startCassandra() throws IOException, InterruptedException {
+		EmbeddedCassandraServerHelper.startEmbeddedCassandra();
+		CqlSession session = EmbeddedCassandraServerHelper.getSession();
+		new CQLDataLoader(session).load(new ClassPathCQLDataSet("schema.cql"));
+	}
 
 	@Autowired
 	private MockMvc mockMvc;
