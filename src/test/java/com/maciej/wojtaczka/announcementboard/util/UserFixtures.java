@@ -1,5 +1,9 @@
 package com.maciej.wojtaczka.announcementboard.util;
 
+import com.maciej.wojtaczka.announcementboard.cache.AnnouncementRedisCache;
+import com.maciej.wojtaczka.announcementboard.cache.entry.AnnouncementEntry;
+import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
+import com.maciej.wojtaczka.announcementboard.domain.model.User;
 import com.maciej.wojtaczka.announcementboard.domain.query.AnnouncementQuery;
 import com.maciej.wojtaczka.announcementboard.persistence.entity.AnnouncementDbEntity;
 import com.maciej.wojtaczka.announcementboard.persistence.entity.UserDbEntity;
@@ -20,9 +24,12 @@ import java.util.stream.Collectors;
 public class UserFixtures {
 
 	private final CassandraOperations cassandraOperations;
+	private final AnnouncementRedisCache redisRepository;
 
-	public UserFixtures(CassandraOperations cassandraOperations) {
+	public UserFixtures(CassandraOperations cassandraOperations,
+						AnnouncementRedisCache redisRepository) {
 		this.cassandraOperations = cassandraOperations;
+		this.redisRepository = redisRepository;
 	}
 
 	public UserBuilder user() {
@@ -31,15 +38,15 @@ public class UserFixtures {
 
 	public class UserBuilder {
 
-		private final UserDbEntity.UserDbEntityBuilder userBuilder;
+		private final User.UserBuilder userBuilder;
 		private final Set<AnnouncementBuilder> userAnnouncements = new HashSet<>();
 
 		public UserBuilder() {
-			userBuilder = UserDbEntity.builder()
-									  .id(UUID.randomUUID())
-									  .name("DefaultName")
-									  .surname("DefaultSurname")
-									  .nickname("DefaultNickname");
+			userBuilder = User.builder()
+							  .id(UUID.randomUUID())
+							  .name("DefaultName")
+							  .surname("DefaultSurname")
+							  .nickname("DefaultNickname");
 		}
 
 		public UserBuilder withId(UUID id) {
@@ -53,33 +60,33 @@ public class UserFixtures {
 
 		@SneakyThrows
 		public GivenUser exists() {
-			UserDbEntity entity = build();
-			cassandraOperations.insert(entity);
+			User user = build();
+			cassandraOperations.insert(UserDbEntity.from(user));
 
-			List<AnnouncementDbEntity> announcements = userAnnouncements.stream()
-																		.map(announcementBuilder -> announcementBuilder.build(entity.getId()))
-																		.map(cassandraOperations::insert)
-																		.collect(Collectors.toList());
+			List<Announcement> announcements = userAnnouncements.stream()
+																.map(announcementBuilder -> announcementBuilder.build(user.getId()))
+																.collect(Collectors.toList());
 
-			return new GivenUser(entity, announcements);
+			return new GivenUser(user, announcements);
 		}
 
-		private UserDbEntity build() {
+		private User build() {
 			return userBuilder.build();
 		}
 	}
 
 	public class AnnouncementBuilder {
 
-		private final AnnouncementDbEntity.AnnouncementDbEntityBuilder entityBuilder;
+		private final Announcement.AnnouncementBuilder entityBuilder;
 		private final UserBuilder owner;
+		private boolean shouldCache;
 
 		public AnnouncementBuilder(UserBuilder owner) {
 			this.owner = owner;
 			owner.userAnnouncements.add(this);
-			this.entityBuilder = AnnouncementDbEntity.builder()
-													 .content("Default content")
-													 .creationTime(Instant.now());
+			this.entityBuilder = Announcement.builder()
+											 .content("Default content")
+											 .creationTime(Instant.now());
 		}
 
 		public AnnouncementBuilder atTime(Instant instant) {
@@ -92,6 +99,11 @@ public class UserFixtures {
 			return this;
 		}
 
+		public AnnouncementBuilder thatHasBeenCached() {
+			shouldCache = true;
+			return this;
+		}
+
 		public AnnouncementBuilder andAnnouncement() {
 			return new AnnouncementBuilder(owner);
 		}
@@ -100,9 +112,17 @@ public class UserFixtures {
 			return owner;
 		}
 
-		private AnnouncementDbEntity build(UUID announcerId) {
-			return entityBuilder.authorId(announcerId)
-								.build();
+		private Announcement build(UUID announcerId) {
+			Announcement announcement = entityBuilder.authorId(announcerId)
+													 .build();
+
+			cassandraOperations.insert(AnnouncementDbEntity.from(announcement));
+
+			if (shouldCache) {
+				redisRepository.save(AnnouncementEntry.from(announcement));
+			}
+
+			return announcement;
 		}
 	}
 
@@ -112,24 +132,24 @@ public class UserFixtures {
 		public static final int SECOND = 1;
 		public static final int THIRD = 2;
 
-		private final UserDbEntity userDbEntity;
-		private final List<AnnouncementDbEntity> announcements;
+		private final User user;
+		private final List<Announcement> announcements;
 
-		public GivenUser(UserDbEntity userDbEntity,
-						 List<AnnouncementDbEntity> announcements) {
-			this.userDbEntity = userDbEntity;
+		public GivenUser(User user,
+						 List<Announcement> announcements) {
+			this.user = user;
 			this.announcements = announcements.stream()
-											  .sorted(Comparator.comparing(AnnouncementDbEntity::getCreationTime))
+											  .sorted(Comparator.comparing(Announcement::getCreationTime))
 											  .collect(Collectors.toList());
 		}
 
 		public UUID getUserId() {
-			return userDbEntity.getId();
+			return user.getId();
 		}
 
 		public AnnouncementQuery getQueryForAnnouncement(int index) {
 			return AnnouncementQuery.builder()
-									.authorId(userDbEntity.getId())
+									.authorId(user.getId())
 									.creationTime(announcements.get(index).getCreationTime())
 									.build();
 		}

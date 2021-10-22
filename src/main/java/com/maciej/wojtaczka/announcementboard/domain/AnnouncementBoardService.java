@@ -10,10 +10,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.reducing;
+import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.toList;
 
 @Service
 public class AnnouncementBoardService {
@@ -21,12 +24,16 @@ public class AnnouncementBoardService {
 	private final UserService userService;
 	private final DomainEventPublisher domainEventPublisher;
 	private final AnnouncementRepository repository;
+	private final AnnouncementCache cache;
 
-	public AnnouncementBoardService(UserService userService, DomainEventPublisher domainEventPublisher,
-									AnnouncementRepository repository) {
+	public AnnouncementBoardService(UserService userService,
+									DomainEventPublisher domainEventPublisher,
+									AnnouncementRepository repository,
+									AnnouncementCache cache) {
 		this.userService = userService;
 		this.domainEventPublisher = domainEventPublisher;
 		this.repository = repository;
+		this.cache = cache;
 	}
 
 	public Announcement publishAnnouncement(UUID authorId, String content) {
@@ -46,19 +53,37 @@ public class AnnouncementBoardService {
 
 	public List<AnnouncementQuery.Result> fetchAll(List<AnnouncementQuery> queries) {
 
-		Map<UUID, Instant> authorIdToFromTime =
-				queries.stream()
-					   .collect(groupingBy(AnnouncementQuery::getAuthorId,
-										   reducing(Instant.now(), AnnouncementQuery::getCreationTime, this::getOlder)));
+		Map<AnnouncementQuery, Announcement> cached = cacheLookup(queries);
 
-		return repository.fetchAll(authorIdToFromTime).stream()
-						 .collect(groupingBy(Announcement::getAuthorId))
-						 .entrySet().stream()
-						 .map(AnnouncementQuery.Result::of)
-						 .collect(Collectors.toList());
+		List<AnnouncementQuery> queriesForDb = queries.stream()
+													  .filter(q -> !cached.containsKey(q))
+													  .collect(toList());
+
+		Map<UUID, List<Instant>> authorIdToCreationTimes =
+				queriesForDb.stream()
+							.collect(groupingBy(AnnouncementQuery::getAuthorId,
+												mapping(AnnouncementQuery::getCreationTime, toList())));
+
+		List<Announcement> fromRepo = repository.fetchAll(authorIdToCreationTimes);
+		cache.saveAll(fromRepo);
+
+		return Stream.concat(
+				cached.values().stream(), fromRepo.stream())
+					 .distinct()
+					 .collect(groupingBy(Announcement::getAuthorId))
+					 .entrySet().stream()
+					 .map(AnnouncementQuery.Result::of)
+					 .collect(toList());
 	}
 
-	private Instant getOlder(Instant a, Instant b) {
-		return a.isBefore(b) ? a : b;
+	private Map<AnnouncementQuery, Announcement> cacheLookup(List<AnnouncementQuery> queries) {
+		return cache.get(queries).stream()
+					.collect(Collectors.toMap(
+							announcement -> AnnouncementQuery.builder()
+															 .authorId(announcement.getAuthorId())
+															 .creationTime(announcement.getCreationTime())
+															 .build(),
+							Function.identity()
+					));
 	}
 }

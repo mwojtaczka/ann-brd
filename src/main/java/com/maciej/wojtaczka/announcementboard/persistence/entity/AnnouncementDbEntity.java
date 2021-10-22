@@ -1,5 +1,6 @@
 package com.maciej.wojtaczka.announcementboard.persistence.entity;
 
+import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
 import com.maciej.wojtaczka.announcementboard.domain.model.Comment;
 import lombok.Builder;
 import lombok.Value;
@@ -23,4 +24,23 @@ public class AnnouncementDbEntity {
 	Instant creationTime;
 	String content;
 	List<Comment> comments;
+
+	public static AnnouncementDbEntity from(Announcement announcement) {
+		return AnnouncementDbEntity.builder()
+								   .authorId(announcement.getAuthorId())
+								   .creationTime(announcement.getCreationTime())
+								   .content(announcement.getContent())
+								   .comments(announcement.getComments())
+								   .build();
+	}
+
+	public Announcement toModel() {
+		return Announcement.builder()
+						   .authorId(authorId)
+						   .creationTime(creationTime)
+						   .content(content)
+						   .comments(comments)
+						   .build();
+	}
 }
+

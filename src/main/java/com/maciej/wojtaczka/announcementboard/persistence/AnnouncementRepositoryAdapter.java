@@ -41,22 +41,21 @@ public class AnnouncementRepositoryAdapter implements AnnouncementRepository {
 	@Override
 	public Announcement save(Announcement announcement) {
 
-		AnnouncementDbEntity announcementEntity = AnnouncementDbEntity.builder()
-																	  .authorId(announcement.getAuthorId())
-																	  .creationTime(announcement.getCreationTime())
-																	  .content(announcement.getContent())
-																	  .comments(announcement.getComments())
-																	  .build();
+		AnnouncementDbEntity announcementEntity = AnnouncementDbEntity.from(announcement);
 
 		AnnouncementDbEntity savedEntity = cassandraOperations.insert(announcementEntity);
 
-		return toModel(savedEntity);
+		return savedEntity.toModel();
 	}
 
 	@Override
-	public List<Announcement> fetchAll(Map<UUID, Instant> authorIdToFromTime) {
+	public List<Announcement> fetchAll(Map<UUID, List<Instant>> authorIdToCreationTimes) {
 
-		List<SimpleStatement> selects = authorIdToFromTime.entrySet().stream()
+		if (authorIdToCreationTimes.isEmpty()) {
+			return List.of();
+		}
+
+		List<SimpleStatement> selects = authorIdToCreationTimes.entrySet().stream()
 														  .map(announcerToTimeEntry -> buildSelectStatement(announcerToTimeEntry.getKey(),
 																											announcerToTimeEntry.getValue()))
 														  .collect(Collectors.toList());
@@ -80,15 +79,18 @@ public class AnnouncementRepositoryAdapter implements AnnouncementRepository {
 		}
 
 		return allAnnouncements.stream()
-							   .map(this::toModel)
+							   .map(AnnouncementDbEntity::toModel)
 							   .collect(Collectors.toList());
 	}
 
-	private SimpleStatement buildSelectStatement(UUID authorId, Instant fromTime) {
+	private SimpleStatement buildSelectStatement(UUID authorId, List<Instant> creationTimes) {
+		creationTimes.sort(Instant::compareTo);
+		Instant oldest = creationTimes.get(0);
+
 		return QueryBuilder.selectFrom("announcement_board", "announcement")
 						   .all()
 						   .whereColumn("author_id").isEqualTo(literal(authorId))
-						   .whereColumn("creation_time").isGreaterThanOrEqualTo(literal(fromTime))
+						   .whereColumn("creation_time").isGreaterThanOrEqualTo(literal(oldest))
 						   .build();
 	}
 
@@ -103,15 +105,6 @@ public class AnnouncementRepositoryAdapter implements AnnouncementRepository {
 		}
 
 		allAnnouncements.addAll(announcements);
-	}
-
-	private Announcement toModel(AnnouncementDbEntity savedEntity) {
-		return Announcement.builder()
-						   .authorId(savedEntity.getAuthorId())
-						   .creationTime(savedEntity.getCreationTime())
-						   .content(savedEntity.getContent())
-						   .comments(savedEntity.getComments())
-						   .build();
 	}
 
 }

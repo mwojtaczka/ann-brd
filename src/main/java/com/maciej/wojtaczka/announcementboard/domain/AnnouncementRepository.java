@@ -11,5 +11,5 @@ public interface AnnouncementRepository {
 
 	Announcement save(Announcement announcement);
 
-	List<Announcement> fetchAll(Map<UUID, Instant> authorIdToFromTime);
+	List<Announcement> fetchAll(Map<UUID, List<Instant>> authorIdToCreationTimes);
 }

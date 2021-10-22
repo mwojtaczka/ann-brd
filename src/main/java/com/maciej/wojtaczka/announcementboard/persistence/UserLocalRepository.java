@@ -19,12 +19,7 @@ public class UserLocalRepository implements UserService {
 	}
 
 	public void saveUser(User user) {
-		UserDbEntity entity = UserDbEntity.builder()
-										  .id(user.getId())
-										  .nickname(user.getNickname())
-										  .name(user.getName())
-										  .surname(user.getSurname())
-										  .build();
+		UserDbEntity entity = UserDbEntity.from(user);
 
 		cassandraOperations.insert(entity);
 	}
@@ -38,13 +33,6 @@ public class UserLocalRepository implements UserService {
 			return Optional.empty();
 		}
 
-		User user = User.builder()
-						.id(userDbEntity.getId())
-						.name(userDbEntity.getName())
-						.surname(userDbEntity.getSurname())
-						.nickname(userDbEntity.getNickname())
-						.build();
-
-		return Optional.of(user);
+		return Optional.of(userDbEntity.toModel());
 	}
 }
