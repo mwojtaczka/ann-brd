@@ -4,13 +4,17 @@ import com.maciej.wojtaczka.announcementboard.domain.AnnouncementBoardService;
 import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
 import com.maciej.wojtaczka.announcementboard.domain.query.AnnouncementQuery;
 import com.maciej.wojtaczka.announcementboard.rest.dto.AnnouncementData;
+import com.maciej.wojtaczka.announcementboard.rest.dto.CommentData;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 public class AnnouncementBoardController {
@@ -33,6 +37,20 @@ public class AnnouncementBoardController {
 
 		return ResponseEntity.created(URI.create(resourceLocation))
 							 .body(announcement);
+	}
+
+	@PostMapping(ANNOUNCEMENTS_URL + "/{announcementAuthorId}/{announcementCreationTimeMillis}")
+	ResponseEntity<Void> placeComment(@PathVariable UUID announcementAuthorId,
+											  @PathVariable Long announcementCreationTimeMillis,
+											  @RequestBody CommentData commentData) {
+
+		announcementBoardService.placeComment(
+				commentData.getAuthorId(),
+				commentData.getContent(),
+				announcementAuthorId,
+				Instant.ofEpochMilli(announcementCreationTimeMillis));
+
+		return ResponseEntity.ok().build();
 	}
 
 	//TODO: Replace with gRPC

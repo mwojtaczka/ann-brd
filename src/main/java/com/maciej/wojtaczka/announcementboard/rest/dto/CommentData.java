@@ -7,8 +7,8 @@ import java.util.UUID;
 
 @Getter
 @Builder
-public class AnnouncementData {
+public class CommentData {
 
-	private final UUID author;
+	private final UUID authorId;
 	private final String content;
 }

@@ -3,6 +3,7 @@ CREATE KEYSPACE IF NOT EXISTS announcement_board WITH REPLICATION = { 'class' : 
 CREATE TYPE IF NOT EXISTS announcement_board.comment
 (
     author_id uuid,
+    author_nickname text,
     content text,
     creation_time timestamp
 );

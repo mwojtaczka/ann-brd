@@ -1,5 +1,6 @@
 package com.maciej.wojtaczka.announcementboard.domain;
 
+import com.maciej.wojtaczka.announcementboard.domain.exception.AnnouncementException;
 import com.maciej.wojtaczka.announcementboard.domain.exception.UserException;
 import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
 import com.maciej.wojtaczka.announcementboard.domain.model.User;
@@ -39,7 +40,7 @@ public class AnnouncementBoardService {
 	public Announcement publishAnnouncement(UUID authorId, String content) {
 
 		User announcer = userService.fetchUser(authorId)
-									.orElseThrow(() -> UserException.userNotFound(authorId));
+									.orElseThrow(() -> UserException.notFound(authorId));
 
 		Announcement announcement = announcer.publishAnnouncement(content);
 
@@ -49,6 +50,25 @@ public class AnnouncementBoardService {
 				 .forEach(domainEventPublisher::publish);
 
 		return savedAnnouncement;
+	}
+
+	public void placeComment(UUID commentAuthorId,
+							 String commentContent,
+							 UUID announcementAuthorId,
+							 Instant announcementCreationTime) {
+
+		User commenter = userService.fetchUser(commentAuthorId)
+									.orElseThrow(() -> UserException.notFound(commentAuthorId));
+
+		Announcement announcement = repository.fetchOne(announcementAuthorId, announcementCreationTime)
+											  .orElseThrow(() -> AnnouncementException.notFound(announcementAuthorId, announcementCreationTime));
+
+		commenter.commentAnnouncement(commentContent, announcement);
+
+		repository.save(announcement);
+
+		commenter.getDomainEvents()
+				 .forEach(domainEventPublisher::publish);
 	}
 
 	public List<AnnouncementQuery.Result> fetchAll(List<AnnouncementQuery> queries) {

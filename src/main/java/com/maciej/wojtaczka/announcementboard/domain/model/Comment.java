@@ -11,6 +11,7 @@ import java.util.UUID;
 public class Comment {
 
     UUID authorId;
+	String authorNickname;
     String content;
     Instant creationTime;
 }

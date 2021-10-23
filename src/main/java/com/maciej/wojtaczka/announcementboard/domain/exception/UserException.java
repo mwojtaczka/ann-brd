@@ -8,7 +8,7 @@ public class UserException extends RuntimeException {
 		super(message);
 	}
 
-	public static UserException userNotFound(UUID userId) {
+	public static UserException notFound(UUID userId) {
 		return new UserException(String.format("User with id: %s not found", userId));
 	}
 }

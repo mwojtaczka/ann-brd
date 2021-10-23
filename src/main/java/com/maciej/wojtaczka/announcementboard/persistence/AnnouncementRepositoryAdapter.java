@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -56,9 +57,9 @@ public class AnnouncementRepositoryAdapter implements AnnouncementRepository {
 		}
 
 		List<SimpleStatement> selects = authorIdToCreationTimes.entrySet().stream()
-														  .map(announcerToTimeEntry -> buildSelectStatement(announcerToTimeEntry.getKey(),
-																											announcerToTimeEntry.getValue()))
-														  .collect(Collectors.toList());
+															   .map(announcerToTimeEntry -> buildSelectStatement(announcerToTimeEntry.getKey(),
+																												 announcerToTimeEntry.getValue()))
+															   .collect(Collectors.toList());
 
 		Queue<ListenableFuture<List<AnnouncementDbEntity>>> futureResults = new LinkedList<>();
 		List<AnnouncementDbEntity> allAnnouncements = new ArrayList<>();
@@ -81,6 +82,20 @@ public class AnnouncementRepositoryAdapter implements AnnouncementRepository {
 		return allAnnouncements.stream()
 							   .map(AnnouncementDbEntity::toModel)
 							   .collect(Collectors.toList());
+	}
+
+	@Override
+	public Optional<Announcement> fetchOne(UUID authorId, Instant creationTime) {
+
+		SimpleStatement select = QueryBuilder.selectFrom("announcement_board", "announcement")
+											 .all()
+											 .whereColumn("author_id").isEqualTo(literal(authorId))
+											 .whereColumn("creation_time").isEqualTo(literal(creationTime))
+											 .build();
+		AnnouncementDbEntity entity = cassandraOperations.selectOne(select, AnnouncementDbEntity.class);
+
+		return Optional.ofNullable(entity)
+					   .map(AnnouncementDbEntity::toModel);
 	}
 
 	private SimpleStatement buildSelectStatement(UUID authorId, List<Instant> creationTimes) {

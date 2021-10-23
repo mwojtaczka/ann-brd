@@ -7,6 +7,7 @@ import com.maciej.wojtaczka.announcementboard.cache.AnnouncementRedisCache;
 import com.maciej.wojtaczka.announcementboard.cache.entry.AnnouncementEntry;
 import com.maciej.wojtaczka.announcementboard.domain.AnnouncementRepository;
 import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
+import com.maciej.wojtaczka.announcementboard.domain.model.Comment;
 import com.maciej.wojtaczka.announcementboard.domain.query.AnnouncementQuery;
 import com.maciej.wojtaczka.announcementboard.util.UserFixtures;
 import lombok.SneakyThrows;
@@ -79,29 +80,37 @@ class AnnouncementBoardControllerQueryTest {
 	@Test
 	void shouldFetchAnnouncements() throws Exception {
 		//given
-		UserFixtures.GivenUser user1 = $.user()
-										.publishedAnnouncement().withContent("Hello 1 from User1").atTime(parse("2007-12-03T10:15:30.00Z"))
-										.andAnnouncement().withContent("Hello 2 from User1").atTime(parse("2007-12-04T10:15:30.00Z"))
-										.andAnnouncement().withContent("Hello 3 from User1").atTime(parse("2007-12-05T10:15:30.00Z"))
-										.andThisUser()
-										.exists();
+		UserFixtures.GivenUser user1 =
+				$.givenUser()
+				 .publishedAnnouncement().withContent("Hello 1 from User1").atTime(parse("2007-12-03T10:15:30.00Z"))
+				 .andAnnouncement().withContent("Hello 2 from User1").atTime(parse("2007-12-04T10:15:30.00Z"))
+				 .andAnnouncement().withContent("Hello 3 from User1").atTime(parse("2007-12-05T10:15:30.00Z"))
+				 .andThisUser()
+				 .exists();
 
-		UserFixtures.GivenUser user2 = $.user()
-										.publishedAnnouncement().withContent("Hello 1 from User2").atTime(parse("2007-12-01T10:16:30.00Z"))
-										.andAnnouncement().withContent("Hello 2 from User2").atTime(parse("2007-12-04T10:16:30.00Z"))
-										.andAnnouncement().withContent("Hello 3 from User2").atTime(parse("2007-12-05T10:16:30.00Z"))
-										.andThisUser()
-										.exists();
+		UUID commenterId1 = UUID.randomUUID();
+		UserFixtures.GivenUser user2 =
+				$.givenUser()
+				 .publishedAnnouncement().withContent("Hello 1 from User2").atTime(parse("2007-12-01T10:16:30.00Z"))
+				 .andAnnouncement().withContent("Hello 2 from User2").atTime(parse("2007-12-04T10:16:30.00Z"))
+				 .thatHasBeenCommented().byUser(commenterId1, "commenter1")
+				 .atTime(parse("2007-12-01T10:16:35.00Z")).withContent("Hello from Commenter1")
+				 .andAlsoCommented()
+				 .andTheGivenUser()
+				 .publishedAnnouncement().withContent("Hello 3 from User2").atTime(parse("2007-12-05T10:16:30.00Z"))
+				 .andThisUser()
+				 .exists();
 
-		UserFixtures.GivenUser user3 = $.user()
-										.publishedAnnouncement().withContent("Hello 1 from User3").atTime(parse("2007-12-03T10:15:30.00Z"))
-										.thatHasBeenCached()
-										.andAnnouncement().withContent("Hello 2 from User3").atTime(parse("2007-12-04T10:15:30.00Z"))
-										.thatHasBeenCached()
-										.andThisUser()
-										.exists();
+		UserFixtures.GivenUser user3 =
+				$.givenUser()
+				 .publishedAnnouncement().withContent("Hello 1 from User3").atTime(parse("2007-12-03T10:15:30.00Z"))
+				 .thatHasBeenCached()
+				 .andAnnouncement().withContent("Hello 2 from User3").atTime(parse("2007-12-04T10:15:30.00Z"))
+				 .thatHasBeenCached()
+				 .andThisUser()
+				 .exists();
 
-		UserFixtures.GivenUser user4 = $.user()
+		UserFixtures.GivenUser user4 = $.givenUser()
 										.publishedAnnouncement().withContent("Hello 1 from User4").atTime(parse("2007-12-03T10:15:30.00Z"))
 										.andAnnouncement().withContent("Hello 2 from User4").atTime(parse("2007-12-04T10:15:30.00Z"))
 										.andThisUser()
@@ -140,6 +149,12 @@ class AnnouncementBoardControllerQueryTest {
 		List<Announcement> announcementsFromUser2 = getAnnouncementsFor(user2, queryResults).orElseThrow();
 		assertThat(announcementsFromUser2).hasSize(2);
 		assertThat(announcementsFromUser2.get(0).getContent()).isEqualTo("Hello 2 from User2");
+		assertThat(announcementsFromUser2.get(0).getComments()).hasSize(2);
+		Comment firstComment = announcementsFromUser2.get(0).getComments().get(0);
+		assertThat(firstComment.getAuthorId()).isEqualTo(commenterId1);
+		assertThat(firstComment.getAuthorNickname()).isEqualTo("commenter1");
+		assertThat(firstComment.getContent()).isEqualTo("Hello from Commenter1");
+		assertThat(firstComment.getCreationTime()).isNotNull();
 		assertThat(announcementsFromUser2.get(1).getContent()).isEqualTo("Hello 3 from User2");
 
 		List<Announcement> announcementsFromUser3 = getAnnouncementsFor(user3, queryResults).orElseThrow();

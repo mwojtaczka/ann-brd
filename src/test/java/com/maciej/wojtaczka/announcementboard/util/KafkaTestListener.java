@@ -41,6 +41,7 @@ public class KafkaTestListener implements DisposableBean {
 		recordsPerTopic = new HashMap<>();
 		latchPerTopic = new HashMap<>();
 		prepareForTopics(User.DomainEvents.ANNOUNCEMENT_PUBLISHED);
+		prepareForTopics(User.DomainEvents.ANNOUNCEMENT_COMMENTED);
 	}
 
 	private void prepareForTopics(String... topics) {

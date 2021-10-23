@@ -6,6 +6,7 @@ import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
 import com.maciej.wojtaczka.announcementboard.domain.model.User;
 import com.maciej.wojtaczka.announcementboard.persistence.entity.AnnouncementDbEntity;
 import com.maciej.wojtaczka.announcementboard.rest.dto.AnnouncementData;
+import com.maciej.wojtaczka.announcementboard.rest.dto.CommentData;
 import com.maciej.wojtaczka.announcementboard.util.KafkaTestListener;
 import com.maciej.wojtaczka.announcementboard.util.UserFixtures;
 import lombok.SneakyThrows;
@@ -27,9 +28,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.UUID;
 
 import static com.maciej.wojtaczka.announcementboard.rest.AnnouncementBoardController.ANNOUNCEMENTS_URL;
+import static java.time.Instant.parse;
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -78,7 +81,7 @@ class AnnouncementBoardControllerTest {
 	void shouldCreateAnnouncementAndEmitEvent() throws Exception {
 		//given
 		UUID announcerId = UUID.randomUUID();
-		$.user().withId(announcerId).exists();
+		$.givenUser().withId(announcerId).exists();
 		String announcementContent = "Hello world";
 
 		AnnouncementData requestBody = AnnouncementData.builder()
@@ -121,6 +124,64 @@ class AnnouncementBoardControllerTest {
 		String capturedEvent = kafkaTestListener.receiveFirstContentFromTopic(User.DomainEvents.ANNOUNCEMENT_PUBLISHED)
 												.orElseThrow(() -> new RuntimeException("No event"));
 		JSONAssert.assertEquals(jsonAnnouncement, capturedEvent, false);
+		assertThat(kafkaTestListener.noMoreMessagesOnTopic(User.DomainEvents.ANNOUNCEMENT_PUBLISHED, 50)).isTrue();
+	}
+
+	@Test
+	void shouldPlaceCommentUnderAnnouncement() throws Exception {
+		//given
+		UUID announcerId = UUID.randomUUID();
+		Instant announcementCreationTime = parse("2007-12-03T10:15:30.00Z");
+		$.givenUser()
+		 .withId(announcerId)
+		 .publishedAnnouncement().atTime(announcementCreationTime)
+		 .andThisUser()
+		 .exists();
+
+		UserFixtures.GivenUser commenter = $.givenUser()
+											.exists();
+		String commentContent = "Nice";
+
+		CommentData commentData = CommentData.builder()
+											 .authorId(commenter.getUserId())
+											 .content(commentContent)
+											 .build();
+
+		//when
+		ResultActions result = mockMvc.perform(post(ANNOUNCEMENTS_URL + "/" + announcerId.toString() + "/" + announcementCreationTime.toEpochMilli())
+													   .content(asJsonString(commentData))
+													   .contentType(APPLICATION_JSON)
+													   .accept(APPLICATION_JSON));
+
+		//then
+		//verify response
+		result.andExpect(status().isOk());
+
+		//verify persistence
+		AnnouncementDbEntity announcementDbEntity = cassandraOperations.selectOne(
+				String.format("select * from announcement_board.announcement where author_id = %s and creation_time = %s",
+							  announcerId,
+							  announcementCreationTime.toEpochMilli()),
+				AnnouncementDbEntity.class
+		);
+
+		assertThat(announcementDbEntity).isNotNull();
+		assertThat(announcementDbEntity.getComments()).hasSize(1);
+		assertThat(announcementDbEntity.getComments().get(0).getAuthorId()).isEqualTo(commenter.getUserId());
+		assertThat(announcementDbEntity.getComments().get(0).getAuthorNickname()).isEqualTo(commenter.getUserNickName());
+		assertThat(announcementDbEntity.getComments().get(0).getContent()).isEqualTo("Nice");
+		assertThat(announcementDbEntity.getComments().get(0).getCreationTime()).isNotNull();
+
+		//verify publishing event
+		String capturedEvent = kafkaTestListener.receiveFirstContentFromTopic(User.DomainEvents.ANNOUNCEMENT_COMMENTED)
+												.orElseThrow(() -> new RuntimeException("No event"));
+		User.AnnouncementCommented event = objectMapper.readValue(capturedEvent, User.AnnouncementCommented.class);
+		assertThat(event.getAnnouncementAuthorId()).isEqualTo(announcerId);
+		assertThat(event.getAnnouncementCreationTime()).isEqualTo(announcementCreationTime);
+		assertThat(event.getComment().getAuthorId()).isEqualTo(commenter.getUserId());
+		assertThat(event.getComment().getAuthorNickname()).isEqualTo(commenter.getUserNickName());
+		assertThat(event.getComment().getContent()).isEqualTo("Nice");
+		assertThat(event.getComment().getCreationTime()).isNotNull();
 		assertThat(kafkaTestListener.noMoreMessagesOnTopic(User.DomainEvents.ANNOUNCEMENT_PUBLISHED, 50)).isTrue();
 	}
 

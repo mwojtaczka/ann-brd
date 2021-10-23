@@ -3,6 +3,7 @@ package com.maciej.wojtaczka.announcementboard.util;
 import com.maciej.wojtaczka.announcementboard.cache.AnnouncementRedisCache;
 import com.maciej.wojtaczka.announcementboard.cache.entry.AnnouncementEntry;
 import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
+import com.maciej.wojtaczka.announcementboard.domain.model.Comment;
 import com.maciej.wojtaczka.announcementboard.domain.model.User;
 import com.maciej.wojtaczka.announcementboard.domain.query.AnnouncementQuery;
 import com.maciej.wojtaczka.announcementboard.persistence.entity.AnnouncementDbEntity;
@@ -12,6 +13,7 @@ import org.springframework.data.cassandra.core.CassandraOperations;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -32,7 +34,7 @@ public class UserFixtures {
 		this.redisRepository = redisRepository;
 	}
 
-	public UserBuilder user() {
+	public UserBuilder givenUser() {
 		return new UserBuilder();
 	}
 
@@ -77,31 +79,37 @@ public class UserFixtures {
 
 	public class AnnouncementBuilder {
 
-		private final Announcement.AnnouncementBuilder entityBuilder;
+		private final Announcement.AnnouncementBuilder builder;
 		private final UserBuilder owner;
+		private final List<CommentBuilder> comments = new ArrayList<>();
 		private boolean shouldCache;
 
 		public AnnouncementBuilder(UserBuilder owner) {
 			this.owner = owner;
 			owner.userAnnouncements.add(this);
-			this.entityBuilder = Announcement.builder()
-											 .content("Default content")
-											 .creationTime(Instant.now());
+			this.builder = Announcement.builder()
+									   .content("Default content")
+									   .comments(new ArrayList<>())
+									   .creationTime(Instant.now());
 		}
 
 		public AnnouncementBuilder atTime(Instant instant) {
-			entityBuilder.creationTime(instant);
+			builder.creationTime(instant);
 			return this;
 		}
 
 		public AnnouncementBuilder withContent(String content) {
-			entityBuilder.content(content);
+			builder.content(content);
 			return this;
 		}
 
 		public AnnouncementBuilder thatHasBeenCached() {
 			shouldCache = true;
 			return this;
+		}
+
+		public CommentBuilder thatHasBeenCommented() {
+			return new CommentBuilder(owner, this);
 		}
 
 		public AnnouncementBuilder andAnnouncement() {
@@ -113,8 +121,13 @@ public class UserFixtures {
 		}
 
 		private Announcement build(UUID announcerId) {
-			Announcement announcement = entityBuilder.authorId(announcerId)
-													 .build();
+			List<Comment> announcementComments = comments.stream()
+														 .map(CommentBuilder::build)
+														 .collect(Collectors.toList());
+
+			Announcement announcement = builder.authorId(announcerId)
+											   .comments(announcementComments)
+											   .build();
 
 			cassandraOperations.insert(AnnouncementDbEntity.from(announcement));
 
@@ -125,6 +138,52 @@ public class UserFixtures {
 			return announcement;
 		}
 	}
+
+	public static class CommentBuilder {
+		private final UserBuilder announcementOwner;
+		private final AnnouncementBuilder announcement;
+		private final Comment.CommentBuilder builder;
+
+		public CommentBuilder(UserBuilder announcementOwner, AnnouncementBuilder announcement) {
+			this.announcementOwner = announcementOwner;
+			this.announcement = announcement;
+			builder = Comment.builder()
+							 .authorId(UUID.randomUUID())
+							 .authorNickname("Default nickname")
+							 .content("Default content")
+							 .creationTime(Instant.now());
+			announcement.comments.add(this);
+		}
+
+		public CommentBuilder byUser(UUID userId, String nickname) {
+			builder.authorId(userId).authorNickname(nickname);
+			return this;
+		}
+
+		public CommentBuilder atTime(Instant commentTime) {
+			builder.creationTime(commentTime);
+			return this;
+		}
+
+		public CommentBuilder withContent(String content) {
+			builder.content(content);
+			return this;
+		}
+
+		public CommentBuilder andAlsoCommented() {
+			return new CommentBuilder(announcementOwner, announcement);
+		}
+
+		public UserBuilder andTheGivenUser() {
+			return announcementOwner;
+		}
+
+		private Comment build() {
+			return builder.build();
+		}
+
+	}
+
 
 	public static class GivenUser {
 
@@ -145,6 +204,10 @@ public class UserFixtures {
 
 		public UUID getUserId() {
 			return user.getId();
+		}
+
+		public String getUserNickName() {
+			return user.getNickname();
 		}
 
 		public AnnouncementQuery getQueryForAnnouncement(int index) {
