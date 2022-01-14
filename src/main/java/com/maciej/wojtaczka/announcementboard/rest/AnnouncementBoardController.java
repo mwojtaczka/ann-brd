@@ -41,8 +41,8 @@ public class AnnouncementBoardController {
 
 	@PostMapping(ANNOUNCEMENTS_URL + "/{announcementAuthorId}/{announcementCreationTimeMillis}")
 	ResponseEntity<Void> placeComment(@PathVariable UUID announcementAuthorId,
-											  @PathVariable Long announcementCreationTimeMillis,
-											  @RequestBody CommentData commentData) {
+									  @PathVariable Long announcementCreationTimeMillis,
+									  @RequestBody CommentData commentData) {
 
 		announcementBoardService.placeComment(
 				commentData.getAuthorId(),

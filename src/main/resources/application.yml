@@ -2,9 +2,13 @@ spring:
   data:
     cassandra:
       keyspace-name: announcement_board
-      contact-points: 127.0.0.1
+      contact-points: ${CASSANDRA_CONTACT_POINT:127.0.0.1}
       port: 9042
       local-datacenter: datacenter1
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_HOST:localhost}:9092
+  redis:
+    port: 6379
+    host: ${REDIS_HOST:localhost}
+
 

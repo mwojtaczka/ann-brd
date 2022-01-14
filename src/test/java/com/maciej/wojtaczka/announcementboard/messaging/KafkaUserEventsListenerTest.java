@@ -58,7 +58,7 @@ class KafkaUserEventsListenerTest {
 				"}";
 
 		//when
-		ListenableFuture<SendResult<String, String>> sent = kafkaTemplate.send(KafkaUserEventsListener.USER_CREATED, jsonPayload);
+		ListenableFuture<SendResult<String, String>> sent = kafkaTemplate.send(KafkaUserEventsListener.USER_REGISTERED, jsonPayload);
 		sent.get();
 
 		//then

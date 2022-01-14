@@ -22,7 +22,7 @@
 		<embedded-cassandra.version>4.0.8</embedded-cassandra.version>
 		<cassandra.unit.version>4.3.1.0</cassandra.unit.version>
 		<hibernate-validator.version>7.0.1.Final</hibernate-validator.version>
-		<embedded-redis.version>0.7.2</embedded-redis.version>
+		<embedded-redis.version>0.7.3</embedded-redis.version>
 	</properties>
 
     <dependencies>
@@ -66,6 +66,7 @@
 			<groupId>org.cassandraunit</groupId>
 			<artifactId>cassandra-unit</artifactId>
 			<version>${cassandra.unit.version}</version>
+			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.hibernate</groupId>
