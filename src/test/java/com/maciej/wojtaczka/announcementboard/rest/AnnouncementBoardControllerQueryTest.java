@@ -7,14 +7,12 @@ import com.maciej.wojtaczka.announcementboard.cache.AnnouncementRedisCache;
 import com.maciej.wojtaczka.announcementboard.cache.entry.AnnouncementEntry;
 import com.maciej.wojtaczka.announcementboard.domain.AnnouncementRepository;
 import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
-import com.maciej.wojtaczka.announcementboard.domain.model.Comment;
 import com.maciej.wojtaczka.announcementboard.domain.query.AnnouncementQuery;
 import com.maciej.wojtaczka.announcementboard.util.UserFixtures;
 import lombok.SneakyThrows;
 import org.cassandraunit.CQLDataLoader;
 import org.cassandraunit.dataset.cql.ClassPathCQLDataSet;
 import org.cassandraunit.utils.EmbeddedCassandraServerHelper;
-import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -41,6 +39,7 @@ import static com.maciej.wojtaczka.announcementboard.util.UserFixtures.GivenUser
 import static com.maciej.wojtaczka.announcementboard.util.UserFixtures.GivenUser.THIRD;
 import static java.time.Instant.parse;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.verify;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -78,7 +77,41 @@ class AnnouncementBoardControllerQueryTest {
 	private ArgumentCaptor<Map<UUID, List<Instant>>> announcementRepoArgCaptor;
 
 	@Test
-	void shouldFetchAnnouncements() throws Exception {
+	void shouldFetchOneAnnouncement() throws Exception {
+		//given
+		UserFixtures.GivenUser user1 =
+				$.givenUser()
+				 .publishedAnnouncement().withContent("Hello 1 from User1").atTime(parse("2007-12-03T10:15:30.00Z"))
+				 .thatHasBeenCommented()
+				 .andTheGivenUser()
+				 .exists();
+
+		AnnouncementQuery q1 = user1.getQueryForAnnouncement(FIRST);
+
+		var queries = List.of(q1);
+
+		//when
+		ResultActions result = mockMvc.perform(post(ANNOUNCEMENTS_FETCH_URL)
+													   .content(asJsonString(queries))
+													   .contentType(APPLICATION_JSON)
+													   .accept(APPLICATION_JSON));
+
+		//then
+		String jsonResponseBody = result.andExpect(status().isOk())
+										.andExpect(jsonPath("$", hasSize(1)))
+										.andReturn()
+										.getResponse().getContentAsString();
+
+		AnnouncementQuery.Result[] queryResults = objectMapper.readValue(jsonResponseBody, AnnouncementQuery.Result[].class);
+
+		List<Announcement> announcementsFromUser1 = getAnnouncementsFor(user1, queryResults).orElseThrow();
+		assertThat(announcementsFromUser1).hasSize(1);
+		assertThat(announcementsFromUser1.get(0).getContent()).isEqualTo("Hello 1 from User1");
+		assertThat(announcementsFromUser1.get(0).getCommentsCount()).isEqualTo(1L);
+	}
+
+	@Test
+	void shouldFetchQueriedAnnouncements() throws Exception {
 		//given
 		UserFixtures.GivenUser user1 =
 				$.givenUser()
@@ -134,7 +167,7 @@ class AnnouncementBoardControllerQueryTest {
 
 		//then
 		String jsonResponseBody = result.andExpect(status().isOk())
-										.andExpect(jsonPath("$", Matchers.hasSize(3)))
+										.andExpect(jsonPath("$", hasSize(3)))
 										.andReturn()
 										.getResponse().getContentAsString();
 
@@ -143,24 +176,25 @@ class AnnouncementBoardControllerQueryTest {
 		List<Announcement> announcementsFromUser1 = getAnnouncementsFor(user1, queryResults).orElseThrow();
 		assertThat(announcementsFromUser1).hasSize(3);
 		assertThat(announcementsFromUser1.get(0).getContent()).isEqualTo("Hello 1 from User1");
+		assertThat(announcementsFromUser1.get(0).getCommentsCount()).isEqualTo(0);
 		assertThat(announcementsFromUser1.get(1).getContent()).isEqualTo("Hello 2 from User1");
+		assertThat(announcementsFromUser1.get(1).getCommentsCount()).isEqualTo(0);
 		assertThat(announcementsFromUser1.get(2).getContent()).isEqualTo("Hello 3 from User1");
+		assertThat(announcementsFromUser1.get(2).getCommentsCount()).isEqualTo(0);
 
 		List<Announcement> announcementsFromUser2 = getAnnouncementsFor(user2, queryResults).orElseThrow();
 		assertThat(announcementsFromUser2).hasSize(2);
 		assertThat(announcementsFromUser2.get(0).getContent()).isEqualTo("Hello 2 from User2");
-		assertThat(announcementsFromUser2.get(0).getComments()).hasSize(2);
-		Comment firstComment = announcementsFromUser2.get(0).getComments().get(0);
-		assertThat(firstComment.getAuthorId()).isEqualTo(commenterId1);
-		assertThat(firstComment.getAuthorNickname()).isEqualTo("commenter1");
-		assertThat(firstComment.getContent()).isEqualTo("Hello from Commenter1");
-		assertThat(firstComment.getCreationTime()).isNotNull();
+		assertThat(announcementsFromUser2.get(0).getCommentsCount()).isEqualTo(2);
 		assertThat(announcementsFromUser2.get(1).getContent()).isEqualTo("Hello 3 from User2");
+		assertThat(announcementsFromUser2.get(1).getCommentsCount()).isEqualTo(0);
 
 		List<Announcement> announcementsFromUser3 = getAnnouncementsFor(user3, queryResults).orElseThrow();
 		assertThat(announcementsFromUser3).hasSize(2);
 		assertThat(announcementsFromUser3.get(0).getContent()).isEqualTo("Hello 1 from User3");
+		assertThat(announcementsFromUser3.get(0).getCommentsCount()).isEqualTo(0);
 		assertThat(announcementsFromUser3.get(1).getContent()).isEqualTo("Hello 2 from User3");
+		assertThat(announcementsFromUser3.get(1).getCommentsCount()).isEqualTo(0);
 
 		Optional<List<Announcement>> announcementsFromUser4 = getAnnouncementsFor(user4, queryResults);
 		assertThat(announcementsFromUser4).isEmpty();

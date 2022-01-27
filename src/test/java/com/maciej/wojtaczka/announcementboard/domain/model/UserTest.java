@@ -55,22 +55,23 @@ class UserTest {
 		//given
 		UUID announcerId = UUID.randomUUID();
 		User commenter = User.builder()
-							 .id(announcerId)
+							 .id(UUID.randomUUID())
 							 .nickname("Nick")
 							 .build();
 		Announcement announcement = Announcement.builder()
-												.authorId(UUID.randomUUID())
+												.authorId(announcerId)
 												.content("Hello world")
 												.creationTime(Instant.parse("2007-12-03T10:15:30.00Z"))
 												.build();
 
 		//when
-		commenter.commentAnnouncement("Hello", announcement);
+		Comment comment = commenter.commentAnnouncement("Hello", announcement);
 
 		//then
-		assertThat(announcement.getComments()).hasSize(1);
-		Comment comment = announcement.getComments().get(0);
+		assertThat(announcement.getCommentsCount()).isEqualTo(1);
 		assertAll(
+				() -> assertThat(comment.getAnnouncementAuthorId()).isEqualTo(announcerId),
+				() -> assertThat(comment.getAnnouncementCreationTime()).isEqualTo(Instant.parse("2007-12-03T10:15:30.00Z")),
 				() -> assertThat(comment.getAuthorId()).isEqualTo(commenter.getId()),
 				() -> assertThat(comment.getAuthorNickname()).isEqualTo(commenter.getNickname()),
 				() -> assertThat(comment.getContent()).isEqualTo("Hello"),
@@ -93,7 +94,7 @@ class UserTest {
 												.build();
 
 		//when
-		commenter.commentAnnouncement("Hello", announcement);
+		Comment placedComment = commenter.commentAnnouncement("Hello", announcement);
 
 		//then
 		List<DomainEvent<?>> domainEvents = commenter.getDomainEvents();
@@ -103,7 +104,7 @@ class UserTest {
 		User.AnnouncementCommented payload = (User.AnnouncementCommented) domainEvents.get(0).getPayload();
 		assertThat(payload.getAnnouncementAuthorId()).isEqualTo(announcerId);
 		assertThat(payload.getAnnouncementCreationTime()).isEqualTo(Instant.parse("2007-12-03T10:15:30.00Z"));
-		assertThat(payload.getComment()).isEqualTo(announcement.getComments().get(0));
+		assertThat(payload.getComment()).isEqualTo(placedComment);
 	}
 
 }

@@ -2,9 +2,13 @@ package com.maciej.wojtaczka.announcementboard.rest;
 
 import com.datastax.oss.driver.api.core.CqlSession;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.maciej.wojtaczka.announcementboard.domain.AnnouncementCache;
 import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
 import com.maciej.wojtaczka.announcementboard.domain.model.User;
+import com.maciej.wojtaczka.announcementboard.domain.query.AnnouncementQuery;
 import com.maciej.wojtaczka.announcementboard.persistence.entity.AnnouncementDbEntity;
+import com.maciej.wojtaczka.announcementboard.persistence.entity.CommentDbEntity;
+import com.maciej.wojtaczka.announcementboard.persistence.entity.CommentsCountDbEntity;
 import com.maciej.wojtaczka.announcementboard.rest.dto.AnnouncementData;
 import com.maciej.wojtaczka.announcementboard.rest.dto.CommentData;
 import com.maciej.wojtaczka.announcementboard.util.KafkaTestListener;
@@ -29,7 +33,10 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static com.maciej.wojtaczka.announcementboard.rest.AnnouncementBoardController.ANNOUNCEMENTS_URL;
 import static java.time.Instant.parse;
@@ -68,6 +75,9 @@ class AnnouncementBoardControllerTest {
 
 	@Autowired
 	private KafkaTestListener kafkaTestListener;
+
+	@Autowired
+	private AnnouncementCache cache;
 
 	@Autowired
 	private UserFixtures $;
@@ -134,7 +144,7 @@ class AnnouncementBoardControllerTest {
 		Instant announcementCreationTime = parse("2007-12-03T10:15:30.00Z");
 		$.givenUser()
 		 .withId(announcerId)
-		 .publishedAnnouncement().atTime(announcementCreationTime)
+		 .publishedAnnouncement().atTime(announcementCreationTime).thatHasBeenCached()
 		 .andThisUser()
 		 .exists();
 
@@ -157,20 +167,34 @@ class AnnouncementBoardControllerTest {
 		//verify response
 		result.andExpect(status().isOk());
 
-		//verify persistence
-		AnnouncementDbEntity announcementDbEntity = cassandraOperations.selectOne(
-				String.format("select * from announcement_board.announcement where author_id = %s and creation_time = %s",
+		//verify comment persistence
+		CommentDbEntity commentDbEntity = cassandraOperations.selectOne(
+				String.format("select * from announcement_board.comment where announcement_author_id = %s and announcement_creation_time = %s",
 							  announcerId,
 							  announcementCreationTime.toEpochMilli()),
-				AnnouncementDbEntity.class
+				CommentDbEntity.class
 		);
 
-		assertThat(announcementDbEntity).isNotNull();
-		assertThat(announcementDbEntity.getComments()).hasSize(1);
-		assertThat(announcementDbEntity.getComments().get(0).getAuthorId()).isEqualTo(commenter.getUserId());
-		assertThat(announcementDbEntity.getComments().get(0).getAuthorNickname()).isEqualTo(commenter.getUserNickName());
-		assertThat(announcementDbEntity.getComments().get(0).getContent()).isEqualTo("Nice");
-		assertThat(announcementDbEntity.getComments().get(0).getCreationTime()).isNotNull();
+		assertThat(commentDbEntity).isNotNull();
+		assertThat(commentDbEntity.getAuthorId()).isEqualTo(commenter.getUserId());
+		assertThat(commentDbEntity.getAuthorNickname()).isEqualTo(commenter.getUserNickName());
+		assertThat(commentDbEntity.getContent()).isEqualTo("Nice");
+		assertThat(commentDbEntity.getCreationTime()).isNotNull();
+
+		//verify comment counter increment
+		CommentsCountDbEntity commentsCount = cassandraOperations.selectOne(
+				String.format("select * from announcement_board.comments_count where announcement_author_id = %s and announcement_creation_time = %s",
+							  announcerId,
+							  announcementCreationTime.toEpochMilli()),
+				CommentsCountDbEntity.class
+		);
+		assertThat(commentsCount).isNotNull();
+		assertThat(commentsCount.getCommentsCount()).isEqualTo(1);
+
+		//verify cached announcement update
+		AnnouncementQuery query = AnnouncementQuery.builder().authorId(announcerId).creationTime(announcementCreationTime).build();
+		Announcement announcementFromCache = cache.getOne(query).orElseThrow();
+		assertThat(announcementFromCache.getCommentsCount()).isEqualTo(1);
 
 		//verify publishing event
 		String capturedEvent = kafkaTestListener.receiveFirstContentFromTopic(User.DomainEvents.ANNOUNCEMENT_COMMENTED)
@@ -183,6 +207,67 @@ class AnnouncementBoardControllerTest {
 		assertThat(event.getComment().getContent()).isEqualTo("Nice");
 		assertThat(event.getComment().getCreationTime()).isNotNull();
 		assertThat(kafkaTestListener.noMoreMessagesOnTopic(User.DomainEvents.ANNOUNCEMENT_PUBLISHED, 50)).isTrue();
+	}
+
+	@Test
+	void shouldPlaceCommentsUnderAnnouncement_whenAllTheCommentsPlacedInCloseTime() throws Exception {
+		//given
+		int numberOfCommentsPlacedInCloseTime = 10;
+		UUID announcerId = UUID.randomUUID();
+		Instant announcementCreationTime = parse("2007-12-03T10:15:30.00Z");
+		$.givenUser()
+		 .withId(announcerId)
+		 .publishedAnnouncement().atTime(announcementCreationTime)
+		 .andThisUser()
+		 .exists();
+
+		String commentContent = "Nice";
+		List<CommentData> commentsData = new ArrayList<>();
+		for (int i = 0; i < numberOfCommentsPlacedInCloseTime; i++) {
+			UserFixtures.GivenUser commenter = $.givenUser()
+												.exists();
+			CommentData commentData = CommentData.builder()
+												 .authorId(commenter.getUserId())
+												 .content(commentContent)
+												 .build();
+			commentsData.add(commentData);
+		}
+		List<CompletableFuture<Void>> jobs = new ArrayList<>();
+
+		//when
+		for (int i = 0; i < numberOfCommentsPlacedInCloseTime; i++) {
+			CommentData commentData = commentsData.get(i);
+			CompletableFuture<Void> asyncJob = CompletableFuture.runAsync(() -> {
+				try {
+					mockMvc.perform(post(ANNOUNCEMENTS_URL + "/" + announcerId.toString() + "/" + announcementCreationTime.toEpochMilli())
+											.content(asJsonString(commentData))
+											.contentType(APPLICATION_JSON)
+											.accept(APPLICATION_JSON));
+				} catch (Exception ignored) {
+				}
+			});
+			jobs.add(asyncJob);
+		}
+
+		//then
+		CompletableFuture.allOf(jobs.toArray(new CompletableFuture[numberOfCommentsPlacedInCloseTime])).join();
+		List<CommentDbEntity> comments = cassandraOperations.select(
+				String.format("select * from announcement_board.comment where announcement_author_id = %s and announcement_creation_time = %s",
+							  announcerId,
+							  announcementCreationTime.toEpochMilli()),
+				CommentDbEntity.class
+		);
+		assertThat(comments).hasSize(numberOfCommentsPlacedInCloseTime);
+
+		//verify comment counter increment
+		CommentsCountDbEntity commentsCount = cassandraOperations.selectOne(
+				String.format("select * from announcement_board.comments_count where announcement_author_id = %s and announcement_creation_time = %s",
+							  announcerId,
+							  announcementCreationTime.toEpochMilli()),
+				CommentsCountDbEntity.class
+		);
+		assertThat(commentsCount).isNotNull();
+		assertThat(commentsCount.getCommentsCount()).isEqualTo(numberOfCommentsPlacedInCloseTime);
 	}
 
 	@SneakyThrows

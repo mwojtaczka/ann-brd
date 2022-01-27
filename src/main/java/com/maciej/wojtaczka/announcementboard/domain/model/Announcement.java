@@ -6,8 +6,6 @@ import lombok.Getter;
 import lombok.ToString;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 @Builder
@@ -19,12 +17,9 @@ public class Announcement {
     private final UUID authorId;
     private final String content;
     private final Instant creationTime;
-    private List<Comment> comments;
+	private long commentsCount;
 
-	public void placeComment(Comment comment) {
-		if (comments == null) {
-			comments = new ArrayList<>();
-		}
-		comments.add(comment);
+	public void increaseCommentsCount() {
+		commentsCount++;
 	}
 }

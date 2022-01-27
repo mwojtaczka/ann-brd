@@ -3,6 +3,7 @@ package com.maciej.wojtaczka.announcementboard.domain;
 import com.maciej.wojtaczka.announcementboard.domain.exception.AnnouncementException;
 import com.maciej.wojtaczka.announcementboard.domain.exception.UserException;
 import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
+import com.maciej.wojtaczka.announcementboard.domain.model.Comment;
 import com.maciej.wojtaczka.announcementboard.domain.model.User;
 import com.maciej.wojtaczka.announcementboard.domain.query.AnnouncementQuery;
 import org.springframework.stereotype.Service;
@@ -63,9 +64,11 @@ public class AnnouncementBoardService {
 		Announcement announcement = repository.fetchOne(announcementAuthorId, announcementCreationTime)
 											  .orElseThrow(() -> AnnouncementException.notFound(announcementAuthorId, announcementCreationTime));
 
-		commenter.commentAnnouncement(commentContent, announcement);
+		Comment comment = commenter.commentAnnouncement(commentContent, announcement);
 
-		repository.save(announcement);
+		cache.getOne(new AnnouncementQuery(announcementAuthorId, announcementCreationTime))
+			 .ifPresent(old -> cache.saveAll(List.of(announcement)));
+		repository.saveAnnouncementComment(comment);
 
 		commenter.getDomainEvents()
 				 .forEach(domainEventPublisher::publish);

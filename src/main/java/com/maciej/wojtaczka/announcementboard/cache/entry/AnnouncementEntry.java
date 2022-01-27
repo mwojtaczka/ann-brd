@@ -17,6 +17,7 @@ public class AnnouncementEntry {
 	UUID authorId;
 	String content;
 	Instant creationTime;
+	long commentsCount;
 
 	public static AnnouncementEntry from(Announcement announcement) {
 		return AnnouncementEntry.builder()
@@ -24,6 +25,7 @@ public class AnnouncementEntry {
 								.authorId(announcement.getAuthorId())
 								.creationTime(announcement.getCreationTime())
 								.content(announcement.getContent())
+								.commentsCount(announcement.getCommentsCount())
 								.build();
 	}
 
@@ -32,6 +34,7 @@ public class AnnouncementEntry {
 						   .authorId(authorId)
 						   .creationTime(creationTime)
 						   .content(content)
+						   .commentsCount(commentsCount)
 						   .build();
 	}
 

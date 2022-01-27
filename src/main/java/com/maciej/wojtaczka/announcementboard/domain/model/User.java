@@ -6,7 +6,6 @@ import lombok.EqualsAndHashCode;
 import lombok.Value;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.UUID;
 
 @EqualsAndHashCode(callSuper = false)
@@ -26,7 +25,6 @@ public class User extends DomainModel {
 												.authorId(id)
 												.content(content)
 												.creationTime(Instant.now())
-												.comments(new ArrayList<>())
 												.build();
 
 		addEventToPublish(DomainEvents.announcementPublished(announcement));
@@ -34,18 +32,22 @@ public class User extends DomainModel {
 		return announcement;
 	}
 
-	public void commentAnnouncement(String commentContent, Announcement announcement) {
+	public Comment commentAnnouncement(String commentContent, Announcement announcement) {
 
 		Comment comment = Comment.builder()
+								 .announcementAuthorId(announcement.getAuthorId())
+								 .announcementCreationTime(announcement.getCreationTime())
 								 .authorId(id)
 								 .authorNickname(nickname)
 								 .content(commentContent)
 								 .creationTime(Instant.now())
 								 .build();
 
-		announcement.placeComment(comment);
+		announcement.increaseCommentsCount();
 
 		addEventToPublish(DomainEvents.announcementCommented(announcement, comment));
+
+		return comment;
 	}
 
 	public static class DomainEvents {

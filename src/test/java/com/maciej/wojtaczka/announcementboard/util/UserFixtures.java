@@ -1,5 +1,7 @@
 package com.maciej.wojtaczka.announcementboard.util;
 
+import com.datastax.oss.driver.api.core.cql.SimpleStatement;
+import com.datastax.oss.driver.api.querybuilder.QueryBuilder;
 import com.maciej.wojtaczka.announcementboard.cache.AnnouncementRedisCache;
 import com.maciej.wojtaczka.announcementboard.cache.entry.AnnouncementEntry;
 import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
@@ -7,6 +9,7 @@ import com.maciej.wojtaczka.announcementboard.domain.model.Comment;
 import com.maciej.wojtaczka.announcementboard.domain.model.User;
 import com.maciej.wojtaczka.announcementboard.domain.query.AnnouncementQuery;
 import com.maciej.wojtaczka.announcementboard.persistence.entity.AnnouncementDbEntity;
+import com.maciej.wojtaczka.announcementboard.persistence.entity.CommentDbEntity;
 import com.maciej.wojtaczka.announcementboard.persistence.entity.UserDbEntity;
 import lombok.SneakyThrows;
 import org.springframework.data.cassandra.core.CassandraOperations;
@@ -20,6 +23,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import static com.datastax.oss.driver.api.querybuilder.QueryBuilder.literal;
 
 
 @Component
@@ -89,7 +94,7 @@ public class UserFixtures {
 			owner.userAnnouncements.add(this);
 			this.builder = Announcement.builder()
 									   .content("Default content")
-									   .comments(new ArrayList<>())
+									   .commentsCount(0)
 									   .creationTime(Instant.now());
 		}
 
@@ -121,21 +126,32 @@ public class UserFixtures {
 		}
 
 		private Announcement build(UUID announcerId) {
-			List<Comment> announcementComments = comments.stream()
-														 .map(CommentBuilder::build)
-														 .collect(Collectors.toList());
-
 			Announcement announcement = builder.authorId(announcerId)
-											   .comments(announcementComments)
 											   .build();
 
 			cassandraOperations.insert(AnnouncementDbEntity.from(announcement));
+			cassandraOperations.insert(AnnouncementDbEntity.from(announcement));
+			comments.stream()
+					.map(commentBuilder -> commentBuilder.build(announcerId, announcement.getCreationTime()))
+					.map(CommentDbEntity::from)
+					.peek(this::incrementCommentsCount)
+					.forEach(cassandraOperations::insert);
+
 
 			if (shouldCache) {
 				redisRepository.save(AnnouncementEntry.from(announcement));
 			}
 
 			return announcement;
+		}
+
+		private void incrementCommentsCount(CommentDbEntity comment) {
+			SimpleStatement incrementCounter = QueryBuilder.update("announcement_board", "comments_count")
+														   .increment("comments_count")
+														   .whereColumn("announcement_author_id").isEqualTo( literal(comment.getAnnouncementAuthorId()))
+														   .whereColumn("announcement_creation_time").isEqualTo( literal(comment.getAnnouncementCreationTime()))
+														   .build();
+			cassandraOperations.execute(incrementCounter);
 		}
 	}
 
@@ -178,8 +194,10 @@ public class UserFixtures {
 			return announcementOwner;
 		}
 
-		private Comment build() {
-			return builder.build();
+		private Comment build(UUID announcementAuthorId, Instant announcementCreationTime) {
+			return builder.announcementAuthorId(announcementAuthorId)
+						  .announcementCreationTime(announcementCreationTime)
+						  .build();
 		}
 
 	}

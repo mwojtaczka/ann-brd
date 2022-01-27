@@ -10,6 +10,9 @@ import java.util.UUID;
 @Value
 public class Comment {
 
+	UUID announcementAuthorId;
+	Instant announcementCreationTime;
+
     UUID authorId;
 	String authorNickname;
     String content;

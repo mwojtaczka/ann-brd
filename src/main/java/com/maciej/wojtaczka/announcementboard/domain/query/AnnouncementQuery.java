@@ -1,6 +1,7 @@
 package com.maciej.wojtaczka.announcementboard.domain.query;
 
 import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Value;
 
@@ -12,6 +13,7 @@ import java.util.UUID;
 
 @Value
 @Builder
+@AllArgsConstructor
 public class AnnouncementQuery {
 
 	UUID authorId;

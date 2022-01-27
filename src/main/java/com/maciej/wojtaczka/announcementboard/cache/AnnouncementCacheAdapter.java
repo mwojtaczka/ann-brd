@@ -7,6 +7,7 @@ import com.maciej.wojtaczka.announcementboard.domain.query.AnnouncementQuery;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.StreamSupport;
 
 import static com.maciej.wojtaczka.announcementboard.cache.entry.AnnouncementEntry.createId;
@@ -27,7 +28,6 @@ public class AnnouncementCacheAdapter implements AnnouncementCache {
 		List<AnnouncementEntry> entries = announcements.stream()
 													   .map(AnnouncementEntry::from)
 													   .collect(toList());
-
 		repository.saveAll(entries);
 	}
 
@@ -41,6 +41,15 @@ public class AnnouncementCacheAdapter implements AnnouncementCache {
 		return StreamSupport.stream(repository.findAllById(ids).spliterator(), false)
 							.map(AnnouncementEntry::toModel)
 							.collect(toList());
+	}
+
+	@Override
+	public Optional<Announcement> getOne(AnnouncementQuery query) {
+
+		String id = createId(query.getAuthorId(), query.getCreationTime());
+
+		return repository.findById(id)
+						 .map(AnnouncementEntry::toModel);
 	}
 
 }
