@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS announcement_board.comment
     author_nickname text,
     creation_time timestamp,
     content text,
-    PRIMARY KEY ((announcement_author_id, announcement_creation_time), author_id, creation_time)
+    PRIMARY KEY ((announcement_author_id, announcement_creation_time), creation_time, author_id)
 );
 
 CREATE TABLE IF NOT EXISTS announcement_board.user
