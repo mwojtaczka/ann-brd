@@ -1,6 +1,7 @@
 package com.maciej.wojtaczka.announcementboard.domain.model;
 
 import com.maciej.wojtaczka.announcementboard.domain.DomainEvent;
+import com.maciej.wojtaczka.announcementboard.domain.dto.Envelope;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -101,7 +102,9 @@ class UserTest {
 		assertThat(domainEvents).hasSize(1);
 		assertThat(domainEvents.get(0).getDestination()).isEqualTo("announcement-commented");
 
-		User.AnnouncementCommented payload = (User.AnnouncementCommented) domainEvents.get(0).getPayload();
+		Envelope<User.AnnouncementCommented> event = (Envelope<User.AnnouncementCommented>) domainEvents.get(0).getPayload();
+		assertThat(event.getRecipients()).containsExactly(announcerId);
+		User.AnnouncementCommented payload = event.getPayload();
 		assertThat(payload.getAnnouncementAuthorId()).isEqualTo(announcerId);
 		assertThat(payload.getAnnouncementCreationTime()).isEqualTo(Instant.parse("2007-12-03T10:15:30.00Z"));
 		assertThat(payload.getComment()).isEqualTo(placedComment);

@@ -1,11 +1,13 @@
 package com.maciej.wojtaczka.announcementboard.domain.model;
 
 import com.maciej.wojtaczka.announcementboard.domain.DomainEvent;
+import com.maciej.wojtaczka.announcementboard.domain.dto.Envelope;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 
 import java.time.Instant;
+import java.util.Set;
 import java.util.UUID;
 
 @EqualsAndHashCode(callSuper = false)
@@ -58,13 +60,14 @@ public class User extends DomainModel {
 			return new DomainEvent<>(ANNOUNCEMENT_PUBLISHED, announcement);
 		}
 
-		static DomainEvent<AnnouncementCommented> announcementCommented(Announcement announcement, Comment comment) {
+		static DomainEvent<Envelope<AnnouncementCommented>> announcementCommented(Announcement announcement, Comment comment) {
 			AnnouncementCommented event = AnnouncementCommented.builder()
 															   .announcementAuthorId(announcement.getAuthorId())
 															   .announcementCreationTime(announcement.getCreationTime())
 															   .comment(comment)
 															   .build();
-			return new DomainEvent<>(ANNOUNCEMENT_COMMENTED, event);
+			Set<UUID> recipients = Set.of(announcement.getAuthorId());
+			return new DomainEvent<>(ANNOUNCEMENT_COMMENTED, new Envelope<>(recipients, event));
 		}
 	}
 

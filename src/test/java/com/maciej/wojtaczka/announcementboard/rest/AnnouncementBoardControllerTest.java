@@ -1,8 +1,10 @@
 package com.maciej.wojtaczka.announcementboard.rest;
 
 import com.datastax.oss.driver.api.core.CqlSession;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.maciej.wojtaczka.announcementboard.domain.AnnouncementCache;
+import com.maciej.wojtaczka.announcementboard.domain.dto.Envelope;
 import com.maciej.wojtaczka.announcementboard.domain.model.Announcement;
 import com.maciej.wojtaczka.announcementboard.domain.model.User;
 import com.maciej.wojtaczka.announcementboard.domain.query.AnnouncementQuery;
@@ -199,13 +201,16 @@ class AnnouncementBoardControllerTest {
 		//verify publishing event
 		String capturedEvent = kafkaTestListener.receiveFirstContentFromTopic(User.DomainEvents.ANNOUNCEMENT_COMMENTED)
 												.orElseThrow(() -> new RuntimeException("No event"));
-		User.AnnouncementCommented event = objectMapper.readValue(capturedEvent, User.AnnouncementCommented.class);
-		assertThat(event.getAnnouncementAuthorId()).isEqualTo(announcerId);
-		assertThat(event.getAnnouncementCreationTime()).isEqualTo(announcementCreationTime);
-		assertThat(event.getComment().getAuthorId()).isEqualTo(commenter.getUserId());
-		assertThat(event.getComment().getAuthorNickname()).isEqualTo(commenter.getUserNickName());
-		assertThat(event.getComment().getContent()).isEqualTo("Nice");
-		assertThat(event.getComment().getCreationTime()).isNotNull();
+		Envelope<User.AnnouncementCommented> event = objectMapper.readValue(capturedEvent, new TypeReference<>() {
+		});
+		assertThat(event.getRecipients()).containsExactly(announcerId);
+		var announcementCommented = event.getPayload();
+		assertThat(announcementCommented.getAnnouncementAuthorId()).isEqualTo(announcerId);
+		assertThat(announcementCommented.getAnnouncementCreationTime()).isEqualTo(announcementCreationTime);
+		assertThat(announcementCommented.getComment().getAuthorId()).isEqualTo(commenter.getUserId());
+		assertThat(announcementCommented.getComment().getAuthorNickname()).isEqualTo(commenter.getUserNickName());
+		assertThat(announcementCommented.getComment().getContent()).isEqualTo("Nice");
+		assertThat(announcementCommented.getComment().getCreationTime()).isNotNull();
 		assertThat(kafkaTestListener.noMoreMessagesOnTopic(User.DomainEvents.ANNOUNCEMENT_PUBLISHED, 50)).isTrue();
 	}
 
