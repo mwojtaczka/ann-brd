@@ -4,10 +4,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class PostBoardApplication {
+public class AnnouncementBoardApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(PostBoardApplication.class, args);
+        SpringApplication.run(AnnouncementBoardApplication.class, args);
     }
 
 }
